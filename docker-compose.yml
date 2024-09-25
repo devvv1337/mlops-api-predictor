@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    container_name: mlops_api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - prometheus
+    networks:
+      - mlops_network
+    volumes:
+      - ./app:/app
+      - ./models:/models
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./dashboards/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./dashboards/alert.rules.yml:/etc/prometheus/alert.rules.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - mlops_network
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: alertmanager
+    volumes:
+      - ./dashboards/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    ports:
+      - "9093:9093"
+    networks:
+      - mlops_network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./dashboards/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./dashboards/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    networks:
+      - mlops_network
+
+  mlflow:
+    image: mlflow:latest
+    container_name: mlflow
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    ports:
+      - "5000:5000"
+    networks:
+      - mlops_network
+
+networks:
+  mlops_network:
+    driver: bridge

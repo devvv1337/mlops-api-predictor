@@ -1,0 +1,2 @@
+artifact_location: ./mlruns
+experiment_name: iris_classification

@@ -1,0 +1,10 @@
+stages:
+  train:
+    cmd: python app/model.py
+    deps:
+      - data/raw/iris.csv
+      - app/model.py
+    outs:
+      - models/model.joblib
+    params:
+      - params.yaml

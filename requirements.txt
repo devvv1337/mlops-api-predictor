@@ -1,0 +1,17 @@
+fastapi==0.95.1
+uvicorn==0.21.1
+scikit-learn==1.2.2
+joblib==1.2.0
+mlflow==2.2.1
+pydantic==1.10.7
+python-dotenv==1.0.0
+pytest==7.3.1
+pytest-cov==4.0.0
+httpx==0.24.0
+dvc==3.0.0
+dvc[s3]==3.0.0
+pandas==1.5.3
+prometheus-client==0.16.0
+sqlalchemy==2.0.9
+passlib[bcrypt]==1.7.4
+python-jose==3.3.0

@@ -1,0 +1,11 @@
+groups:
+  - name: mlops_alerts
+    rules:
+      - alert: HighErrorRate
+        expr: sum(rate(error_count[1m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is above 0 in the last minute"

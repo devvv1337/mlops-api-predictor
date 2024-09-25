@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+
+# DVC
+/data
+
+# MLflow
+mlruns/
+
+# Model files
+*.joblib
+
+# Environment variables
+.env
+
+# IDE files
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Docker files
+# (Nous gardons docker-compose.yml pour qu'il soit versionné)
