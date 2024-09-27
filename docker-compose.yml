@@ -1,6 +1,22 @@
 version: '3.8'
 
 services:
+  trainer:
+    build: .
+    container_name: mlops_trainer
+    entrypoint: ["python", "model.py"]
+    depends_on:
+      - mlflow
+    env_file:
+      - .env
+    volumes:
+      - ./app:/app
+      - ./models:/models
+      - ./data:/app/data
+    networks:
+      - mlops_network
+
+
   api:
     build: .
     container_name: mlops_api
@@ -10,11 +26,13 @@ services:
       - .env
     depends_on:
       - prometheus
-    networks:
-      - mlops_network
+      - trainer
     volumes:
       - ./app:/app
       - ./models:/models
+      - ./data:/app/data
+    networks:
+      - mlops_network
 
   prometheus:
     image: prom/prometheus:latest
@@ -61,7 +79,6 @@ services:
       - "5000:5000"
     networks:
       - mlops_network
-
 
 networks:
   mlops_network:

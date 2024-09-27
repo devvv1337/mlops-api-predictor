@@ -1,429 +1,305 @@
-# Projet MLOps : Classification Iris avec FastAPI, MLflow, DVC, Prometheus, Alertmanager et Grafana
+# Guide Complet pour Déployer l'Application MLOps avec Docker
+
+Bienvenue dans ce projet MLOps qui intègre un pipeline complet de Machine Learning avec FastAPI, MLflow, DVC, Prometheus, Grafana et Docker. Ce guide vous fournira des instructions détaillées pour configurer, déployer et utiliser l'application en vous concentrant sur la partie Docker.
 
 ## Table des Matières
 
-- [Description](#description)
-- [Architecture du Projet](#architecture-du-projet)
+- [Aperçu du Projet](#aperçu-du-projet)
+- [Architecture](#architecture)
 - [Prérequis](#prérequis)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Utilisation](#utilisation)
-  - [1. Initialiser la Base de Données et Créer un Utilisateur](#1-initialiser-la-base-de-données-et-créer-un-utilisateur)
-  - [2. Entraîner le Modèle](#2-entraîner-le-modèle)
-  - [3. Accéder à l'API](#3-accéder-à-lapi)
-  - [4. Authentification](#4-authentification)
-  - [5. Monitoring et Alerting](#5-monitoring-et-alerting)
-  - [6. Suivi des Expériences avec MLflow](#6-suivi-des-expériences-avec-mlflow)
-- [API Endpoints](#api-endpoints)
+- [Configuration du Projet](#configuration-du-projet)
+  - [1. Cloner le Référentiel](#1-cloner-le-référentiel)
+  - [2. Configurer les Variables d'Environnement](#2-configurer-les-variables-denvironnement)
+  - [3. Configurer DVC pour le Versionnement des Données](#3-configurer-dvc-pour-le-versionnement-des-données)
+  - [4. Configurer MLflow pour le Suivi des Expériences](#4-configurer-mlflow-pour-le-suivi-des-expériences)
+- [Déploiement avec Docker](#déploiement-avec-docker)
+  - [1. Construire les Images Docker](#1-construire-les-images-docker)
+  - [2. Démarrer les Services avec Docker Compose](#2-démarrer-les-services-avec-docker-compose)
+  - [3. Vérifier le Déploiement](#3-vérifier-le-déploiement)
+- [Utilisation de l'API](#utilisation-de-lapi)
+  - [1. Obtenir un Token d'Authentification](#1-obtenir-un-token-dauthentification)
+  - [2. Effectuer une Prédiction](#2-effectuer-une-prédiction)
+  - [3. Consulter les Informations du Modèle](#3-consulter-les-informations-du-modèle)
+- [Surveillance et Alertes](#surveillance-et-alertes)
+  - [1. Accéder à Prometheus](#1-accéder-à-prometheus)
+  - [2. Accéder à Grafana](#2-accéder-à-grafana)
+  - [3. Configurer Alertmanager](#3-configurer-alertmanager)
 - [Tests](#tests)
-- [Pipeline CI/CD](#pipeline-cicd)
-- [Versionnement des Données avec DVC](#versionnement-des-données-avec-dvc)
-- [Déploiement](#déploiement)
-- [Bonnes Pratiques MLOps](#bonnes-pratiques-mlops)
-- [Difficultés Rencontrées](#difficultés-rencontrées)
-- [Points Restants à Réaliser](#points-restants-à-réaliser)
-- [Contribution](#contribution)
-- [Licence](#licence)
 
 ---
 
-## Description
+## Aperçu du Projet
 
-Ce projet implémente un workflow MLOps complet pour un modèle de classification Iris, en utilisant les technologies suivantes :
+Ce projet est une application de classification d'iris qui utilise un modèle de Machine Learning entraîné avec Scikit-learn. L'application expose une API RESTful construite avec FastAPI pour effectuer des prédictions en temps réel. Elle intègre également des outils MLOps tels que MLflow pour le suivi des expériences, DVC pour le versionnement des données, et des solutions de surveillance avec Prometheus et Grafana. Le déploiement est entièrement géré via Docker pour faciliter la configuration et l'orchestration des services.
 
-- **FastAPI** : Fournit une API pour effectuer des prédictions et obtenir des informations sur le modèle.
-- **MLflow** : Utilisé pour le suivi des expériences et le versionnement des modèles.
-- **DVC (Data Version Control)** : Gère le versionnement des données, avec un stockage distant sur AWS S3.
-- **Prometheus** : Collecte les métriques exposées par l'API pour le monitoring.
-- **Alertmanager** : Gère les alertes basées sur les métriques collectées.
-- **Grafana** : Visualise les métriques collectées via des dashboards personnalisés.
-- **Docker & Docker Compose** : Conteneurise l'application et orchestre les services.
-- **GitHub Actions** : Implémente un pipeline CI/CD pour automatiser les tests, la construction et le déploiement.
-- **Authentification JWT** : Sécurise l'API avec des tokens JWT et des mots de passe hachés de manière sécurisée.
+## Architecture
 
----
+L'architecture du projet se compose des composants suivants, tous orchestrés via Docker :
 
-## Architecture du Projet
-
-![Architecture Diagram](path/to/architecture_diagram.png)
-
-L'architecture du projet est composée des éléments suivants :
-
-- **API FastAPI** : Conteneur `api`
-- **MLflow Server** : Conteneur `mlflow`
-- **Prometheus** : Conteneur `prometheus`
-- **Alertmanager** : Conteneur `alertmanager`
-- **Grafana** : Conteneur `grafana`
-- **Stockage Distant S3** : Pour DVC et MLflow
-- **Base de Données SQLite** : Pour stocker les utilisateurs de l'API
-
-Tous ces services sont orchestrés via Docker Compose et communiquent entre eux via un réseau Docker dédié.
-
----
+- **API FastAPI** : Fournit l'API pour les prédictions et les informations du modèle.
+- **Service d'Entraînement** : Entraîne le modèle et l'enregistre.
+- **MLflow** : Utilisé pour le suivi des expériences et le stockage des artefacts du modèle.
+- **DVC** : Gère le versionnement des données.
+- **Prometheus** : Collecte les métriques pour la surveillance.
+- **Grafana** : Visualise les métriques collectées.
+- **Alertmanager** : Gère les alertes basées sur les règles définies.
+- **Docker Compose** : Orchestre tous les services dans des conteneurs Docker.
 
 ## Prérequis
 
-- **Docker** installé sur votre machine
-- **Docker Compose** installé sur votre machine
-- **Compte AWS** avec un bucket S3 pour le stockage distant (peut être utilisé avec l'offre gratuite AWS Free Tier)
-- **Accès à un serveur SMTP** pour l'envoi d'emails d'alerte (optionnel si vous configurez Alertmanager pour utiliser un autre moyen de notification)
-- **Git** pour cloner le dépôt
-- **Python 3.9** (si vous souhaitez exécuter le code en dehors des conteneurs Docker)
+Assurez-vous que les outils suivants sont installés sur votre système :
 
----
+- **Git** : Pour cloner le référentiel.
+- **Docker** : Pour le déploiement des conteneurs.
+- **Docker Compose** : Pour orchestrer les services Docker.
 
-## Installation
+## Configuration du Projet
 
-1. **Cloner le dépôt :**
+### 1. Cloner le Référentiel
 
-   ```bash
-   git clone https://github.com/votre-username/mlops_project.git
-   cd mlops_project
-   ```
+Commencez par cloner le référentiel Git sur votre machine locale :
 
-2. **Configurer les Variables d'Environnement :**
+```bash
+git clone https://github.com/votre-utilisateur/votre-repo.git
+cd votre-repo
+```
 
-   Copiez le fichier `.env.example` en `.env` :
+### 2. Configurer les Variables d'Environnement
+
+Le projet utilise un fichier `.env` pour gérer les variables d'environnement nécessaires à la configuration des services. Suivez les étapes ci-dessous pour configurer vos variables d'environnement :
+
+1. **Copiez le fichier d'exemple** `.env.example` pour créer votre propre fichier `.env` :
 
    ```bash
    cp .env.example .env
    ```
 
-   Modifiez le fichier `.env` avec vos propres valeurs :
+2. **Modifiez le fichier `.env`** pour y ajouter vos propres configurations :
 
-   - `SECRET_KEY` : Clé secrète pour signer les tokens JWT
-   - `DATABASE_URL` : URL de connexion à la base de données (par défaut SQLite)
-   - `MLFLOW_TRACKING_URI` : URI de tracking de MLflow (par défaut `http://mlflow:5000`)
-   - `AWS_ACCESS_KEY_ID` et `AWS_SECRET_ACCESS_KEY` : Vos identifiants AWS
-   - `AWS_DEFAULT_REGION` : La région AWS de votre bucket S3
+   - **SECRET_KEY** : Une clé secrète pour sécuriser l'API. Vous pouvez générer une clé en utilisant la commande suivante en Python :
 
-3. **Construire et Lancer les Conteneurs Docker :**
+     ```python
+     import secrets
+     print(secrets.token_urlsafe(32))
+     ```
 
-   ```bash
-   docker-compose up --build
+   - **DATABASE_URL** : L'URL de connexion à la base de données. Par défaut, une base de données SQLite est utilisée.
+
+   - **MLFLOW_TRACKING_URI** : L'URI pour le suivi MLflow. Dans le contexte de Docker, utilisez `http://mlflow:5000`.
+
+   - **AWS Credentials** : Si vous utilisez AWS pour le stockage des données ou des artefacts, ajoutez vos identifiants AWS. **Ne partagez jamais vos clés AWS dans un référentiel public.**
+
+   Exemple de fichier `.env` :
+
+   ```env
+   # API Configuration
+   SECRET_KEY=your_generated_secret_key
+
+   # Database URL
+   DATABASE_URL=sqlite:///./users.db
+
+   # MLflow Tracking URI
+   MLFLOW_TRACKING_URI=http://mlflow:5000
+
+   # AWS Credentials (si nécessaire)
+   AWS_ACCESS_KEY_ID=your_access_key_id
+   AWS_SECRET_ACCESS_KEY=your_secret_access_key
+   AWS_DEFAULT_REGION=us-east-1
    ```
 
-   Cela démarre les services suivants :
+### 3. Configurer DVC pour le Versionnement des Données
 
-   - **API FastAPI** : `http://localhost:8000`
-   - **Prometheus** : `http://localhost:9090`
-   - **Grafana** : `http://localhost:3000`
-   - **MLflow** : `http://localhost:5000`
-   - **Alertmanager** : `http://localhost:9093`
+Le projet utilise DVC pour gérer le versionnement des données. Assurez-vous que DVC est correctement configuré :
 
----
+1. **Installer DVC** (si ce n'est pas déjà fait) :
 
-## Configuration
+   ```bash
+   pip install dvc
+   ```
 
-### 1. Configurer Grafana :
+2. **Configurer le Remote DVC** : Si vous utilisez un stockage distant pour les données (par exemple, AWS S3), configurez-le en utilisant :
 
-- Accédez à `http://localhost:3000` dans votre navigateur.
-- Connectez-vous avec les identifiants par défaut :
+   ```bash
+   dvc remote add -d myremote s3://mybucket/path
+   ```
 
+3. **Récupérer les Données** :
+
+   ```bash
+   dvc pull
+   ```
+
+### 4. Configurer MLflow pour le Suivi des Expériences
+
+MLflow est utilisé pour le suivi des expériences et le stockage des artefacts du modèle.
+
+- **Assurez-vous que le fichier `mlflow.yaml`** est correctement configuré :
+
+  ```yaml
+  artifact_location: ./mlruns
+  experiment_name: iris_classification
+  ```
+
+- **Note** : Dans le contexte de Docker, MLflow est déployé comme un service Docker séparé et accessible via `http://mlflow:5000`.
+
+## Déploiement avec Docker
+
+Le déploiement de l'application est orchestré via Docker Compose, ce qui facilite le lancement de tous les services nécessaires.
+
+### 1. Construire les Images Docker
+
+Avant de démarrer les services, vous devez construire les images Docker pour l'API et le service d'entraînement :
+
+```bash
+docker-compose build
+```
+
+Cette commande lit le `Dockerfile` et crée les images Docker nécessaires.
+
+### 2. Démarrer les Services avec Docker Compose
+
+Lancez tous les services définis dans `docker-compose.yml` en mode détaché :
+
+```bash
+docker-compose up -d
+```
+
+Les services suivants seront démarrés :
+
+- **trainer** : Entraîne le modèle et le stocke.
+- **api** : Expose l'API FastAPI pour les prédictions.
+- **mlflow** : Service MLflow pour le suivi des expériences.
+- **prometheus** : Collecte les métriques pour la surveillance.
+- **grafana** : Visualise les métriques collectées.
+- **alertmanager** : Gère les alertes basées sur les règles définies.
+
+### 3. Vérifier le Déploiement
+
+Vous pouvez vérifier que les conteneurs sont en cours d'exécution en utilisant :
+
+```bash
+docker-compose ps
+```
+
+Assurez-vous que tous les services sont `Up`.
+
+## Utilisation de l'API
+
+Une fois que tous les services sont démarrés, vous pouvez interagir avec l'API pour effectuer des prédictions.
+
+### 1. Obtenir un Token d'Authentification
+
+L'API utilise OAuth2 pour l'authentification. Pour obtenir un token, effectuez une requête POST :
+
+```bash
+curl -X POST "http://localhost:8000/token" \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "username=student&password=yourpassword"
+```
+
+**Remarque** : Par défaut, un utilisateur fictif `student` est configuré avec le mot de passe `fakehashedpassword`. Vous pouvez modifier les utilisateurs dans le fichier `./app/main.py` ou configurer une base de données réelle.
+
+### 2. Effectuer une Prédiction
+
+Utilisez le token obtenu pour effectuer une prédiction :
+
+```bash
+curl -X POST "http://localhost:8000/predict" \
+     -H "Authorization: Bearer votre_token" \
+     -H "Content-Type: application/json" \
+     -d '{"features": [5.1, 3.5, 1.4, 0.2]}'
+```
+
+Vous devriez recevoir une réponse JSON avec la prédiction du modèle.
+
+### 3. Consulter les Informations du Modèle
+
+Vous pouvez également obtenir des informations sur le modèle déployé :
+
+```bash
+curl -X GET "http://localhost:8000/model-info" \
+     -H "Authorization: Bearer votre_token"
+```
+
+## Surveillance et Alertes
+
+Le projet intègre Prometheus et Grafana pour la surveillance, ainsi qu'Alertmanager pour la gestion des alertes.
+
+### 1. Accéder à Prometheus
+
+Prometheus collecte les métriques exposées par l'API. Vous pouvez accéder à l'interface de Prometheus via :
+
+- **URL** : `http://localhost:9090`
+
+Vous pouvez utiliser l'interface pour exécuter des requêtes PromQL et visualiser les métriques collectées.
+
+### 2. Accéder à Grafana
+
+Grafana est utilisé pour visualiser les métriques collectées par Prometheus.
+
+- **URL** : `http://localhost:3000`
+- **Identifiants par défaut** :
   - **Utilisateur** : `admin`
   - **Mot de passe** : `admin`
 
-- Changez le mot de passe lors de la première connexion.
-- Configurez la source de données Prometheus :
+#### Importer le Dashboard
 
-  - Allez dans **Configuration** > **Data Sources**.
-  - Ajoutez une nouvelle source de données de type **Prometheus**.
-  - Renseignez l'URL : `http://prometheus:9090`
-  - Sauvegardez et testez la connexion.
+Pour visualiser les métriques de l'API, importez le dashboard fourni :
 
-- Importez le dashboard :
+1. Connectez-vous à Grafana.
+2. Cliquez sur le bouton **"+"** dans la barre latérale gauche et sélectionnez **"Import"**.
+3. Cliquez sur **"Upload .json File"** et sélectionnez le fichier `dashboards/grafana/dashboards/api_metrics.json`.
+4. Cliquez sur **"Import"**.
 
-  - Allez dans **Create** > **Import**.
-  - Cliquez sur **Upload JSON file** et sélectionnez le fichier `dashboards/grafana/dashboards/api_metrics.json`.
+### 3. Configurer Alertmanager
 
-### 2. Configurer Alertmanager (Optionnel) :
+Alertmanager gère les alertes basées sur les règles définies dans `dashboards/alert.rules.yml`. Par défaut, les alertes sont configurées pour être envoyées par email.
 
-- Modifiez le fichier `dashboards/alertmanager.yml` pour configurer les notifications selon vos besoins (email, Slack, etc.).
-- Si vous utilisez des emails, assurez-vous de configurer les paramètres SMTP.
+#### Configurer les Paramètres SMTP
 
----
+Modifiez le fichier `dashboards/alertmanager.yml` pour configurer vos paramètres SMTP :
 
-## Utilisation
+```yaml
+global:
+  resolve_timeout: 5m
 
-### 1. Initialiser la Base de Données et Créer un Utilisateur
+route:
+  receiver: 'email-notifications'
 
-Par défaut, la base de données SQLite est vide. Vous devez créer un utilisateur pour pouvoir utiliser l'API.
-
-**Étapes :**
-
-1. **Accéder au conteneur API :**
-
-   ```bash
-   docker exec -it mlops_api bash
-   ```
-
-2. **Lancer le shell Python :**
-
-   ```bash
-   python
-   ```
-
-3. **Créer un utilisateur :**
-
-   ```python
-   from app.database import SessionLocal, User, get_password_hash
-   db = SessionLocal()
-   new_user = User(username="votre_nom_utilisateur", hashed_password=get_password_hash("votre_mot_de_passe"))
-   db.add(new_user)
-   db.commit()
-   db.close()
-   exit()
-   ```
-
-4. **Quitter le conteneur :**
-
-   ```bash
-   exit
-   ```
-
-### 2. Entraîner le Modèle
-
-Vous pouvez entraîner le modèle en exécutant le script `model.py`.
-
-**Étapes :**
-
-```bash
-docker exec -it mlops_api python app/model.py
+receivers:
+  - name: 'email-notifications'
+    email_configs:
+      - to: 'alerts@example.com'
+        from: 'alertmanager@example.com'
+        smarthost: 'smtp.example.com:587'
+        auth_username: 'smtp_user'
+        auth_password: 'smtp_password'
 ```
 
-Le modèle est entraîné, les métriques et paramètres sont enregistrés dans MLflow, et le modèle est enregistré dans le **Model Registry** de MLflow.
+**Remarque** : Remplacez les valeurs par vos propres informations.
 
-### 3. Accéder à l'API
+#### Redémarrer Alertmanager
 
-- **API principale** : `http://localhost:8000`
-- **Documentation interactive** : `http://localhost:8000/docs`
-
-### 4. Authentification
-
-L'API est sécurisée avec JWT. Vous devez obtenir un token d'accès pour interagir avec les endpoints protégés.
-
-**Obtenir un token :**
-
-- Envoyez une requête POST à `/token` avec les champs `username` et `password`.
-
-Exemple avec `curl` :
+Après avoir modifié la configuration, redémarrez le conteneur Alertmanager :
 
 ```bash
-curl -X POST "http://localhost:8000/token" -d "username=votre_nom_utilisateur&password=votre_mot_de_passe"
+docker-compose restart alertmanager
 ```
-
-La réponse contiendra un `access_token` que vous utiliserez dans le header `Authorization` pour les requêtes suivantes :
-
-```bash
-Authorization: Bearer votre_access_token
-```
-
-### 5. Monitoring et Alerting
-
-- **Prometheus** collecte les métriques exposées par l'API.
-- **Grafana** visualise ces métriques via des dashboards personnalisés.
-- **Alertmanager** gère les alertes basées sur les règles définies dans `alert.rules.yml`.
-
-**Accéder aux services :**
-
-- **Prometheus** : `http://localhost:9090`
-- **Grafana** : `http://localhost:3000`
-- **Alertmanager** : `http://localhost:9093`
-
-### 6. Suivi des Expériences avec MLflow
-
-- **MLflow UI** : `http://localhost:5000`
-
-Dans l'interface MLflow, vous pouvez :
-
-- Visualiser les runs d'entraînement du modèle.
-- Consulter les métriques et les paramètres enregistrés.
-- Gérer les versions du modèle dans le Model Registry.
-
----
-
-## API Endpoints
-
-### **POST** `/token`
-
-- **Description** : Obtient un token d'accès JWT pour un utilisateur authentifié.
-- **Paramètres** :
-
-  - `username` : Nom d'utilisateur.
-  - `password` : Mot de passe.
-
-- **Réponse** :
-
-  - `access_token` : Token JWT à utiliser pour les requêtes ultérieures.
-  - `token_type` : Type de token (`bearer`).
-
-### **POST** `/predict`
-
-- **Description** : Effectue une prédiction en utilisant le modèle entraîné.
-- **Sécurité** : Nécessite un token JWT valide.
-- **Corps de la requête** :
-
-  ```json
-  {
-    "features": [valeur1, valeur2, valeur3, valeur4]
-  }
-  ```
-
-  - `features` : Liste de 4 valeurs numériques correspondant aux features du dataset Iris.
-
-- **Réponse** :
-
-  ```json
-  {
-    "prediction": [classe_prévue]
-  }
-  ```
-
-  - `prediction` : Liste contenant la classe prédite (0, 1 ou 2).
-
-### **GET** `/model-info`
-
-- **Description** : Fournit des informations sur le modèle actuellement déployé.
-- **Sécurité** : Nécessite un token JWT valide.
-- **Réponse** :
-
-  ```json
-  {
-    "model_name": "Nom du modèle",
-    "model_version": "Version du modèle",
-    "current_stage": "Stade actuel (Production, Staging, etc.)",
-    "description": "Description du modèle"
-  }
-  ```
-
-### **GET** `/metrics`
-
-- **Description** : Expose les métriques pour Prometheus.
-- **Sécurité** : Pas de sécurité particulière (accessible par Prometheus).
-
----
 
 ## Tests
 
-Les tests unitaires sont implémentés avec `pytest`.
+Le projet inclut des tests pour vérifier le bon fonctionnement du modèle et de l'API.
 
-**Exécuter les tests :**
+### Exécuter les Tests
+
+Vous pouvez exécuter les tests en utilisant Docker :
 
 ```bash
-docker exec -it mlops_api pytest
+docker-compose run --rm api pytest tests/
 ```
 
-Les tests couvrent :
-
-- L'authentification et l'obtention du token JWT.
-- Les endpoints `/predict` et `/model-info`.
-- Les cas d'erreur, tels que les données invalides ou les tokens expirés.
+Cela exécutera les tests définis dans le dossier `tests/` à l'intérieur du conteneur `api`.
 
 ---
 
-## Pipeline CI/CD
-
-Le pipeline CI/CD est implémenté avec GitHub Actions et est défini dans `.github/workflows/ci_cd.yml`.
-
-**Fonctionnalités :**
-
-- **Build and Test** : À chaque push ou pull request sur la branche `main`, les tests sont exécutés pour vérifier l'intégrité du code.
-- **Docker Build and Push** : Si les tests réussissent, une image Docker est construite et poussée vers Docker Hub.
-- **Déploiement** : L'image Docker est déployée sur le serveur de production via SSH.
-
-**Configuration :**
-
-- Les secrets nécessaires (identifiants Docker Hub, clés SSH, etc.) sont stockés en tant que **GitHub Secrets** pour des raisons de sécurité.
-
----
-
-## Versionnement des Données avec DVC
-
-DVC (Data Version Control) est utilisé pour gérer le versionnement des données.
-
-**Configuration :**
-
-- Le remote est configuré pour utiliser un bucket S3 sur AWS.
-- Les identifiants AWS sont gérés via les variables d'environnement dans le fichier `.env`.
-
-**Utilisation :**
-
-- **Ajouter de nouvelles données :**
-
-  ```bash
-  dvc add data/raw/nouvelles_donnees.csv
-  ```
-
-- **Committer les changements :**
-
-  ```bash
-  git add data/raw/nouvelles_donnees.csv.dvc
-  git commit -m "Ajout de nouvelles données"
-  ```
-
-- **Pousser les données versionnées :**
-
-  ```bash
-  dvc push
-  ```
-
-- **Tirer les données versionnées :**
-
-  ```bash
-  dvc pull
-  ```
-
----
-
-## Déploiement
-
-Le déploiement est géré via Docker Compose.
-
-**Déployer l'application :**
-
-- Sur le serveur cible, assurez-vous que Docker et Docker Compose sont installés.
-- Poussez l'image Docker sur un registre (par exemple, Docker Hub).
-- Sur le serveur, mettez à jour l'image Docker et relancez les services :
-
-  ```bash
-  docker-compose pull
-  docker-compose up -d --build
-  ```
-
----
-
-## Bonnes Pratiques MLOps
-
-- **Séparation des Préoccupations** : Chaque composant (API, monitoring, tracking, etc.) est isolé et géré séparément.
-- **Automatisation** : Le pipeline CI/CD automatise les tests, la construction et le déploiement.
-- **Sécurité** :
-
-  - Les mots de passe sont hachés avec `bcrypt`.
-  - L'API est sécurisée avec des tokens JWT signés et expirant.
-  - Les secrets (identifiants AWS, clés secrètes) sont gérés via des variables d'environnement et ne sont pas commis dans le contrôle de version.
-
-- **Monitoring et Alerting** : Les métriques critiques sont surveillées, et des alertes sont envoyées en cas de problème.
-- **Scalabilité** : L'application peut être déployée sur un orchestrateur de conteneurs comme Kubernetes pour une scalabilité horizontale.
-
----
-
-## Difficultés Rencontrées
-
-- **Gestion des Dépendances** : Assurer la compatibilité entre les versions des bibliothèques et des services.
-- **Sécurisation de l'API** : Implémenter une authentification robuste tout en maintenant la simplicité d'utilisation.
-- **Configuration des Outils de Monitoring** : Harmoniser les configurations entre Prometheus, Alertmanager et Grafana.
-
----
-
-## Points Restants à Réaliser
-
-- **Déploiement sur Kubernetes** : Pour une scalabilité et une résilience accrues.
-- **Tests de Charge et de Performance** : Pour évaluer le comportement de l'application sous une forte charge.
-- **Gestion des Secrets Plus Sécurisée** : Utiliser un gestionnaire de secrets dédié (comme HashiCorp Vault).
-- **Amélioration de la Couverture des Tests** : Ajouter des tests de bout en bout et des tests d'intégration.
-
----
-
-
-
-
+**Remarque** : N'oubliez pas de sécuriser vos informations sensibles et de ne jamais les partager publiquement. Assurez-vous également de respecter les politiques de sécurité de votre organisation lors de l'utilisation de ce projet.

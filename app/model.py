@@ -9,8 +9,8 @@ import pandas as pd
 def load_data():
     # Chargement des données depuis le fichier CSV versionné par DVC
     data = pd.read_csv('data/raw/iris.csv')
-    X = data.drop('target', axis=1)
-    y = data['target']
+    X = data.drop('species', axis=1)  # Remplacement de 'target' par 'species'
+    y = data['species']               # Remplacement de 'target' par 'species'
     return train_test_split(X, y, test_size=0.2, random_state=42)
 
 def train_and_log_model():
@@ -32,8 +32,7 @@ def train_and_log_model():
         mlflow.sklearn.log_model(clf, "model")
 
         # Sauvegarder le modèle localement
-        joblib.dump(clf, 'models/model.joblib')
-
+        joblib.dump(clf, '/models/model.joblib')
         print(f"Model trained and logged with run_id: {run.info.run_id}")
         return run.info.run_id
 

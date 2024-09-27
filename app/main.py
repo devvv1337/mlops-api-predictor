@@ -1,44 +1,46 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional  # Import Optional here
 import joblib
 import os
 from dotenv import load_dotenv
+
 import logging
 import mlflow
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import Request
-import smtplib
-from email.mime.text import MIMEText
+# import smtplib
+# from email.mime.text import MIMEText
 
 load_dotenv()
 
 app = FastAPI()
 
-# CORS Middleware (optional, adjust as needed)
+# CORS Middleware (optionnel, ajustez selon vos besoins)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change this in production
+    allow_origins=["*"],  # Changez ceci en production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Setup Logging
+# Configuration du logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load Model
-MODEL_PATH = 'models/model.joblib'
+# Chargement du modèle
+MODEL_PATH = '/models/model.joblib'  # Chemin absolu corrigé
+if not os.path.exists(MODEL_PATH):
+    raise FileNotFoundError(f"Model file not found at {MODEL_PATH}")
 model = joblib.load(MODEL_PATH)
 
-# Security
+# Sécurité
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# Dummy user database
+# Base de données d'utilisateurs factice
 fake_users_db = {
     "student": {
         "username": "student",
@@ -52,7 +54,7 @@ def fake_hash_password(password: str):
 
 class User(BaseModel):
     username: str
-    full_name: str | None = None
+    full_name: Optional[str] = None  # Use Optional here
 
 class UserInDB(User):
     hashed_password: str
@@ -65,26 +67,27 @@ def authenticate_user(username: str, password: str):
         return False
     return User(**user)
 
-def send_error_email(subject: str, message: str):
-    smtp_server = os.getenv("SMTP_SERVER")
-    smtp_port = int(os.getenv("SMTP_PORT", 587))
-    smtp_user = os.getenv("SMTP_USER")
-    smtp_password = os.getenv("SMTP_PASSWORD")
-    recipient = os.getenv("ALERT_EMAIL_RECIPIENT")
-
-    msg = MIMEText(message)
-    msg['Subject'] = subject
-    msg['From'] = smtp_user
-    msg['To'] = recipient
-
-    try:
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_password)
-            server.send_message(msg)
-        logger.info("Error email sent successfully.")
-    except Exception as e:
-        logger.error(f"Failed to send error email: {e}")
+# Fonction pour envoyer des emails d'erreur (désactivée pour le moment)
+# def send_error_email(subject: str, message: str):
+#     smtp_server = os.getenv("SMTP_SERVER")
+#     smtp_port = int(os.getenv("SMTP_PORT", 587))
+#     smtp_user = os.getenv("SMTP_USER")
+#     smtp_password = os.getenv("SMTP_PASSWORD")
+#     recipient = os.getenv("ALERT_EMAIL_RECIPIENT")
+#
+#     msg = MIMEText(message)
+#     msg['Subject'] = subject
+#     msg['From'] = smtp_user
+#     msg['To'] = recipient
+#
+#     try:
+#         with smtplib.SMTP(smtp_server, smtp_port) as server:
+#             server.starttls()
+#             server.login(smtp_user, smtp_password)
+#             server.send_message(msg)
+#         logger.info("Error email sent successfully.")
+#     except Exception as e:
+#         logger.error(f"Failed to send error email: {e}")
 
 @app.post("/token")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -95,13 +98,13 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    # In a real application, return a JWT or similar token
+    # Dans une application réelle, retournez un JWT ou un token similaire
     return {"access_token": "fake-token-for-" + user.username, "token_type": "bearer"}
 
 class PredictionRequest(BaseModel):
     features: List[float]
 
-# Prometheus Metrics
+# Métriques Prometheus
 REQUEST_COUNT = Counter('request_count', 'Total number of requests')
 REQUEST_LATENCY = Histogram('request_latency_seconds', 'Latency of requests in seconds')
 PREDICTION_COUNT = Counter('prediction_count', 'Number of predictions made')
@@ -116,10 +119,10 @@ async def metrics_middleware(request: Request, call_next):
 @app.post("/predict")
 def predict(request: PredictionRequest, token: str = Depends(oauth2_scheme)):
     try:
-        # Authentication placeholder
+        # Vérification d'authentification simplifiée
         if not token.startswith("fake-token-for-"):
             raise HTTPException(status_code=403, detail="Forbidden")
-        
+
         PREDICTION_COUNT.inc()
         logger.info(f"Received prediction request: {request.features}")
         with mlflow.start_run(run_name="prediction"):
@@ -130,27 +133,38 @@ def predict(request: PredictionRequest, token: str = Depends(oauth2_scheme)):
         return {"prediction": prediction.tolist()}
     except Exception as e:
         logger.error(f"Prediction error: {str(e)}")
-        send_error_email("API Prediction Error", str(e))
-        raise HTTPException(status_code=400, detail=str(e))
+        # Appel à la fonction d'envoi d'email d'erreur (désactivé)
+        # send_error_email("API Prediction Error", str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @app.get("/model-info")
 def model_info(token: str = Depends(oauth2_scheme)):
     try:
-        # Authentication placeholder
+        # Vérification d'authentification simplifiée
         if not token.startswith("fake-token-for-"):
             raise HTTPException(status_code=403, detail="Forbidden")
-        
-        model_info = mlflow.sklearn.get_model_info("models/model.joblib")
+
+        # Supposons que vous avez un moyen d'obtenir les informations du modèle
+        # Pour la démonstration, nous allons retourner des données fictives
         return {
-            "model_version": model_info.version,
-            "model_stage": model_info.stage,
-            "creation_timestamp": model_info.creation_timestamp
+            "model_version": "1.0.0",
+            "model_stage": "Production",
+            "creation_timestamp": "2024-09-27T13:47:53Z"
         }
     except Exception as e:
         logger.error(f"Error getting model info: {str(e)}")
-        send_error_email("API Model Info Error", str(e))
+        # Appel à la fonction d'envoi d'email d'erreur (désactivé)
+        # send_error_email("API Model Info Error", str(e))
         raise HTTPException(status_code=500, detail="Error retrieving model information")
 
 @app.get("/metrics")
 def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+# Importer la fonction pour créer la base de données et les tables
+from database import create_db_and_tables
+
+# Initialiser la base de données au démarrage de l'application
+@app.on_event("startup")
+def on_startup():
+    create_db_and_tables()
