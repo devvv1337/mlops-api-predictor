@@ -1,7 +1,8 @@
+
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from typing import List, Optional  # Import Optional here
+from typing import List, Optional
 import joblib
 import os
 from dotenv import load_dotenv
@@ -11,33 +12,42 @@ import mlflow
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
-# import smtplib
-# from email.mime.text import MIMEText
 
 load_dotenv()
 
 app = FastAPI()
 
-# CORS Middleware (optionnel, ajustez selon vos besoins)
+# CORS Middleware (optional, adjust as needed)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Changez ceci en production
+    allow_origins=["*"],  # Change this in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Configuration du logging
+# Logging configuration
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Chargement du modèle
-MODEL_PATH = '/models/model.joblib'  # Chemin absolu corrigé
+# Set MLflow tracking URI
+if os.environ.get('DOCKER_CONTAINER', False):
+    mlflow_tracking_uri = os.getenv('MLFLOW_TRACKING_URI', 'http://mlflow:5000')
+else:
+    mlflow_tracking_uri = f'file://{os.path.abspath("mlruns")}'
+mlflow.set_tracking_uri(mlflow_tracking_uri)
+
+
+# Obtain the current directory of the file
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Load the model
+MODEL_PATH = os.getenv('MODEL_PATH', os.path.join(CURRENT_DIR, '..', 'models', 'model.joblib'))
 if not os.path.exists(MODEL_PATH):
     raise FileNotFoundError(f"Model file not found at {MODEL_PATH}")
 model = joblib.load(MODEL_PATH)
 
-# Sécurité
+# Security
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # Base de données d'utilisateurs factice
@@ -162,7 +172,7 @@ def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 # Importer la fonction pour créer la base de données et les tables
-from database import create_db_and_tables
+from .database import create_db_and_tables
 
 # Initialiser la base de données au démarrage de l'application
 @app.on_event("startup")

@@ -23,11 +23,13 @@ def load_data():
 
 def train_and_log_model(params_path='params.yaml'):
     # Detect if running inside Docker
+    # Detect if running inside Docker
     if os.environ.get('DOCKER_CONTAINER', False):
         mlflow_tracking_uri = os.getenv('MLFLOW_TRACKING_URI', 'http://mlflow:5000')
     else:
-        mlflow_tracking_uri = os.getenv('MLFLOW_TRACKING_URI', f'file://{os.path.abspath("mlruns")}')
+        mlflow_tracking_uri = f'file://{os.path.abspath("mlruns")}'
     mlflow.set_tracking_uri(mlflow_tracking_uri)
+
 
     params = load_params(params_path)
     X_train, X_test, y_train, y_test = load_data()
