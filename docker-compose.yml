@@ -9,13 +9,17 @@ services:
       - mlflow
     env_file:
       - .env
+    environment:
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_DEFAULT_REGION
+      - DOCKER_CONTAINER=true  # Add this line
     volumes:
-      - ./app:/app
+      - ./app:/app  # Mount the ./app directory into /app
       - ./models:/models
       - ./data:/app/data
     networks:
       - mlops_network
-
 
   api:
     build: .
@@ -24,6 +28,10 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_DEFAULT_REGION
     depends_on:
       - prometheus
       - trainer
@@ -72,7 +80,13 @@ services:
     image: python:3.9-slim
     container_name: mlflow
     command: >
-      sh -c "pip install mlflow==2.2.1 && mlflow server --backend-store-uri sqlite:///mlflow.db --default-artifact-root /mlflow/artifacts --host 0.0.0.0 --port 5000"
+      sh -c "pip install mlflow==2.2.1 boto3==1.24.89 && mlflow server --backend-store-uri sqlite:///mlflow.db --default-artifact-root s3://irisbucketmlops/mlflow/ --host 0.0.0.0 --port 5000"
+    environment:
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_DEFAULT_REGION
+    env_file:
+      - .env
     volumes:
       - ./mlflow_data:/mlflow
     ports:

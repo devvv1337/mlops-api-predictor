@@ -1,0 +1,26 @@
+schema: '2.0'
+stages:
+  train:
+    cmd: 
+      /Users/juliencardi/Documents/ing3/mlops/mlops_project/mlops-api-predictor/myenv/bin/python
+      app/model.py
+    deps:
+    - path: app/model.py
+      hash: md5
+      md5: 40e927eca030f84098fe2ffe8111cc4f
+      size: 1893
+    - path: data/raw/iris.csv
+      hash: md5
+      md5: dfd937daece56623d0a753286627645a
+      size: 2778
+    params:
+      params.yaml:
+        train:
+          n_estimators: 100
+          random_state: 42
+          test_size: 0.2
+    outs:
+    - path: models/model.joblib
+      hash: md5
+      md5: 5d35caa2397a8d9f0101464719fa4345
+      size: 173265

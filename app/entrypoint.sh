@@ -7,15 +7,9 @@ set -e
 # Navigate to the app directory
 cd /app
 
-# Path to the model
-MODEL_PATH="/models/model.joblib"
-
-# Wait until the model file is present
-echo "Checking for model at $MODEL_PATH"
-while [ ! -f $MODEL_PATH ]; do
-    echo "Waiting for model file at $MODEL_PATH..."
-    sleep 5
-done
+# Tirer le modèle depuis le stockage distant DVC
+echo "Pulling model from DVC remote..."
+dvc pull models/model.joblib
 
 # Initialize the database
 echo "Initializing the database..."

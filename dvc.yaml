@@ -1,10 +1,10 @@
 stages:
   train:
-    cmd: python app/model.py
+    cmd: /Users/juliencardi/Documents/ing3/mlops/mlops_project/mlops-api-predictor/myenv/bin/python app/model.py
     deps:
       - data/raw/iris.csv
       - app/model.py
     outs:
       - models/model.joblib
     params:
-      - app/params.yaml
+      - train

@@ -1,3 +1,5 @@
+# app/model.py
+
 import mlflow
 import mlflow.sklearn
 from sklearn.datasets import load_iris
@@ -13,7 +15,6 @@ def load_params(params_path='params.yaml'):
         params = yaml.safe_load(file)
     return params['train']
 
-
 def load_data():
     data = pd.read_csv('data/raw/iris.csv')
     X = data.drop('species', axis=1)
@@ -21,6 +22,13 @@ def load_data():
     return train_test_split(X, y, test_size=0.2, random_state=42)
 
 def train_and_log_model(params_path='params.yaml'):
+    # Detect if running inside Docker
+    if os.environ.get('DOCKER_CONTAINER', False):
+        mlflow_tracking_uri = os.getenv('MLFLOW_TRACKING_URI', 'http://mlflow:5000')
+    else:
+        mlflow_tracking_uri = os.getenv('MLFLOW_TRACKING_URI', f'file://{os.path.abspath("mlruns")}')
+    mlflow.set_tracking_uri(mlflow_tracking_uri)
+
     params = load_params(params_path)
     X_train, X_test, y_train, y_test = load_data()
 
@@ -39,13 +47,12 @@ def train_and_log_model(params_path='params.yaml'):
 
         mlflow.sklearn.log_model(clf, "model")
 
-        # S'assurer que le répertoire 'models' existe
-        os.makedirs('../models', exist_ok=True)
+        # Ensure the 'models' directory exists
+        os.makedirs('models', exist_ok=True)
 
-        # Enregistrer le modèle localement
-        joblib.dump(clf, '../models/model.joblib')
+        # Save the model locally
+        joblib.dump(clf, 'models/model.joblib')
         print(f"Model trained and logged with run_id: {run.info.run_id}")
-
 
         return run.info.run_id
 
