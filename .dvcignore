@@ -1,3 +1,4 @@
 # Add patterns of files dvc should ignore, which could include:
 *.pyc
 __pycache__
+myenv/

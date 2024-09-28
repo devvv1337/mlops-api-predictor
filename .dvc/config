@@ -1,0 +1,6 @@
+[core]
+    remote = myremote
+
+['remote "myremote"']
+    url = s3://irisbucketmlops/dvcstore
+    region = eu-north-1

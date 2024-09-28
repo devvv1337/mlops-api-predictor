@@ -6,7 +6,7 @@ __pycache__/
 # Virtual environment
 venv/
 env/
-
+myenv/
 # DVC
 /data
 
@@ -15,6 +15,7 @@ mlruns/
 
 # Model files
 *.joblib
+!*.joblib.dvc  # Autoriser les fichiers méta de DVC
 
 # Environment variables
 .env
