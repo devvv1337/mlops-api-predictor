@@ -20,15 +20,11 @@ jobs:
       with:
         python-version: '3.9'
 
-    - name: Install DVC
-      uses: iterative/setup-dvc@v1
-      with:
-        version: 'latest'
-
-    - name: Install dependencies
+    - name: Install DVC and dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install dvc[s3]  # Install DVC with S3 support
+        pip install -r requirements.txt  # Install other project dependencies
 
     - name: Configure AWS credentials
       env:
