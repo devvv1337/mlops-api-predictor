@@ -20,11 +20,15 @@ jobs:
       with:
         python-version: '3.9'
 
+    - name: Install DVC
+      uses: iterative/setup-dvc@v1
+      with:
+        version: 'latest'
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install dvc[s3]  # Install DVC with S3 support
 
     - name: Configure AWS credentials
       env:
@@ -39,5 +43,11 @@ jobs:
     - name: Pull data with DVC
       run: dvc pull
 
+    - name: Verify DVC pull
+      run: ls -la models/
+
     - name: Run tests
       run: pytest tests
+
+    - name: Clean up
+      run: rm -rf models/
