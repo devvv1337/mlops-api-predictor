@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, conlist, confloat, validator
+from typing import List, Optional, Any  # 'Any' est importé ici
 import joblib
 import os
 from dotenv import load_dotenv
@@ -13,6 +13,15 @@ from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 import time
+
+from datetime import datetime, timedelta
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+
+# Importation de Session depuis sqlalchemy.orm
+from sqlalchemy.orm import Session
+
+from .database import SessionLocal, create_db_and_tables, get_user, create_user, User as DBUser
 
 load_dotenv()
 
@@ -74,47 +83,105 @@ except Exception as e:
 # Sécurité
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# Base de données d'utilisateurs factice
-fake_users_db = {
-    "student": {
-        "username": "student",
-        "full_name": "Student User",
-        "hashed_password": "fakehashedpassword",
-    }
-}
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-def fake_hash_password(password: str):
-    return "fakehashed" + password
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def authenticate_user(db, username: str, password: str):
+    user = get_user(db, username)
+    if not user:
+        return None
+    if not verify_password(password, user.hashed_password):
+        return None
+    return user
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)  # Par défaut, expiration dans 15 minutes
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
 class User(BaseModel):
+    id: int
     username: str
-    full_name: Optional[str] = None
 
-class UserInDB(User):
-    hashed_password: str
+    class Config:
+        orm_mode = True
 
-def authenticate_user(username: str, password: str):
-    user = fake_users_db.get(username)
-    if not user:
-        return False
-    if user["hashed_password"] != fake_hash_password(password):
-        return False
-    return User(**user)
+class UserCreate(BaseModel):
+    username: str
+    password: str
 
-@app.post("/token")
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(form_data.username, form_data.password)
+class PredictionRequest(BaseModel):
+    features: conlist(confloat(ge=0, le=50), min_items=4, max_items=4)
+
+    @validator('features')
+    def check_features_length(cls, v):
+        if len(v) != 4:
+            raise ValueError('Le nombre de features doit être exactement 4.')
+        return v
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)  # Changement de SessionLocal à Session
+):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Impossible de valider les informations d'identification",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    user = get_user(db, username=username)
+    if user is None:
+        raise credentials_exception
+    return user
+
+@app.post("/token", response_model=Token)
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)  # Changement de SessionLocal à Session
+):
+    user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Nom d'utilisateur ou mot de passe incorrect",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    # Dans une application réelle, retournez un JWT ou un token similaire
-    return {"access_token": "fake-token-for-" + user.username, "token_type": "bearer"}
-
-class PredictionRequest(BaseModel):
-    features: List[float]
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
 
 # Métriques Prometheus
 REQUEST_COUNT = Counter('request_count', 'Nombre total de requêtes')
@@ -129,12 +196,8 @@ async def metrics_middleware(request: Request, call_next):
     return response
 
 @app.post("/predict")
-def predict(request: PredictionRequest, token: str = Depends(oauth2_scheme)):
+def predict(request: PredictionRequest, current_user: DBUser = Depends(get_current_user)):
     try:
-        # Vérification d'authentification simplifiée
-        if not token.startswith("fake-token-for-"):
-            raise HTTPException(status_code=403, detail="Accès refusé")
-
         PREDICTION_COUNT.inc()
         logger.info(f"Requête de prédiction reçue : {request.features}")
 
@@ -147,13 +210,10 @@ def predict(request: PredictionRequest, token: str = Depends(oauth2_scheme)):
             # Mesurer le temps écoulé
             elapsed_time = time.time() - start_time
 
-            # Extraire le nom d'utilisateur depuis le token
-            username = token.replace("fake-token-for-", "")
-
             # Enregistrer les paramètres et les métriques dans MLflow
             mlflow.log_param("input_features", request.features)
             mlflow.log_param("predicted_value", prediction[0])
-            mlflow.log_param("username", username)
+            mlflow.log_param("username", current_user.username)
             mlflow.log_metric("prediction_time_seconds", elapsed_time)
 
         logger.info(f"Prédiction : {prediction.tolist()}, Temps pris : {elapsed_time:.4f} secondes")
@@ -163,12 +223,8 @@ def predict(request: PredictionRequest, token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
 @app.get("/model-info")
-def model_info(token: str = Depends(oauth2_scheme)):
+def model_info(current_user: DBUser = Depends(get_current_user)):
     try:
-        # Vérification d'authentification simplifiée
-        if not token.startswith("fake-token-for-"):
-            raise HTTPException(status_code=403, detail="Accès refusé")
-
         # Obtenir les informations du modèle depuis le registre MLflow
         latest_production_versions = client.get_latest_versions(
             name="IrisRandomForestModel", stages=["Production"]
@@ -194,8 +250,15 @@ def model_info(token: str = Depends(oauth2_scheme)):
 def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
-# Importer la fonction pour créer la base de données et les tables
-from .database import create_db_and_tables
+# Endpoint pour créer un nouvel utilisateur
+@app.post("/users/", response_model=User)
+def create_new_user(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = get_user(db, username=user.username)
+    if db_user:
+        raise HTTPException(status_code=400, detail="Nom d'utilisateur déjà utilisé")
+    hashed_password = get_password_hash(user.password)
+    new_user = create_user(db, username=user.username, hashed_password=hashed_password)
+    return User.from_orm(new_user)
 
 # Initialiser la base de données au démarrage de l'application
 @app.on_event("startup")

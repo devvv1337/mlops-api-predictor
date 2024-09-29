@@ -1,7 +1,8 @@
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 import os
+from typing import Any  # Importation de Any si utilisé
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./users.db")
 
@@ -18,3 +19,13 @@ class User(Base):
 
 def create_db_and_tables():
     Base.metadata.create_all(bind=engine)
+
+def get_user(db: Session, username: str) -> Any:
+    return db.query(User).filter(User.username == username).first()
+
+def create_user(db: Session, username: str, hashed_password: str) -> User:
+    db_user = User(username=username, hashed_password=hashed_password)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
