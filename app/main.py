@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
@@ -12,42 +11,42 @@ import mlflow
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
+import time  # Import ajouté
 
 load_dotenv()
 
 app = FastAPI()
 
-# CORS Middleware (optional, adjust as needed)
+# CORS Middleware (optionnel, ajustez selon vos besoins)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change this in production
+    allow_origins=["*"],  # Changez ceci en production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Logging configuration
+# Configuration du logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Set MLflow tracking URI
+# Définir l'URI de suivi MLflow
 if os.environ.get('DOCKER_CONTAINER', False):
     mlflow_tracking_uri = os.getenv('MLFLOW_TRACKING_URI', 'http://mlflow:5000')
 else:
     mlflow_tracking_uri = f'file://{os.path.abspath("mlruns")}'
 mlflow.set_tracking_uri(mlflow_tracking_uri)
 
-
-# Obtain the current directory of the file
+# Obtention du répertoire actuel du fichier
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Load the model
+# Charger le modèle
 MODEL_PATH = os.getenv('MODEL_PATH', os.path.join(CURRENT_DIR, '..', 'models', 'model.joblib'))
 if not os.path.exists(MODEL_PATH):
     raise FileNotFoundError(f"Model file not found at {MODEL_PATH}")
 model = joblib.load(MODEL_PATH)
 
-# Security
+# Sécurité
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # Base de données d'utilisateurs factice
@@ -64,7 +63,7 @@ def fake_hash_password(password: str):
 
 class User(BaseModel):
     username: str
-    full_name: Optional[str] = None  # Use Optional here
+    full_name: Optional[str] = None  # Utilisez Optional ici
 
 class UserInDB(User):
     hashed_password: str
@@ -135,12 +134,27 @@ def predict(request: PredictionRequest, token: str = Depends(oauth2_scheme)):
 
         PREDICTION_COUNT.inc()
         logger.info(f"Received prediction request: {request.features}")
+
+        # Démarrer le chronomètre
+        start_time = time.time()
+
         with mlflow.start_run(run_name="prediction"):
             prediction = model.predict([request.features])
+
+            # Mesurer le temps écoulé
+            elapsed_time = time.time() - start_time
+
+            # Extraire le nom d'utilisateur depuis le token
+            username = token.replace("fake-token-for-", "")
+
+            # Enregistrer les paramètres et les métriques dans MLflow
             mlflow.log_param("input_features", request.features)
-            mlflow.log_metric("prediction", prediction[0])
-        logger.info(f"Prediction: {prediction.tolist()}")
-        return {"prediction": prediction.tolist()}
+            mlflow.log_param("predicted_value", prediction[0])
+            mlflow.log_param("username", username)
+            mlflow.log_metric("prediction_time_seconds", elapsed_time)
+
+        logger.info(f"Prediction: {prediction.tolist()}, Time taken: {elapsed_time:.4f} seconds")
+        return {"prediction": prediction.tolist(), "prediction_time_seconds": elapsed_time}
     except Exception as e:
         logger.error(f"Prediction error: {str(e)}")
         # Appel à la fonction d'envoi d'email d'erreur (désactivé)

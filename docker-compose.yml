@@ -34,9 +34,12 @@ services:
       - AWS_ACCESS_KEY_ID
       - AWS_SECRET_ACCESS_KEY
       - AWS_DEFAULT_REGION
+      - DOCKER_CONTAINER=true  
+
     depends_on:
       - prometheus
       - trainer
+      - mlflow  # Assurez-vous que l'API dépend également de MLflow
     volumes:
       - ./data:/app/data  # Only mount the data directory if needed
     networks:
