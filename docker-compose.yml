@@ -1,3 +1,5 @@
+# ./docker-compose.yml
+
 version: '3.8'
 
 services:
@@ -103,6 +105,20 @@ services:
       interval: 40s
       timeout: 10s
       retries: 10
+
+  ngrok:
+    image: wernight/ngrok
+    container_name: ngrok
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+      - NGROK_OPTS=--region=us
+      - NGROK_PORT=api:8000  # Modification ici
+    depends_on:
+      - api
+    ports:
+      - "4040:4040"  # Port pour l'interface web de ngrok
+    networks:
+      - mlops_network
 
 networks:
   mlops_network:

@@ -1,11 +1,29 @@
 groups:
   - name: mlops_alerts
     rules:
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, sum(rate(request_latency_seconds_bucket[2m])) by (le)) > 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Latence élevée des requêtes détectée"
+          description: "La latence du 95ème percentile dépasse 1 seconde pendant 2 minutes."
+      
+      - alert: LowPredictionCount
+        expr: sum(rate(prediction_count_total[1m])) < 100
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Nombre de prédictions faible détecté"
+          description: "Moins de 100 prédictions par minute pendant 2 minutes consécutives, ce qui pourrait indiquer un problème."
+      
       - alert: HighErrorRate
-        expr: sum(rate(error_count[1m])) > 0
+        expr: sum(rate(error_count_total[1m])) > 0
         for: 1m
         labels:
           severity: critical
         annotations:
-          summary: "High error rate detected"
-          description: "Error rate is above 0 in the last minute"
+          summary: "Taux d'erreur élevé détecté"
+          description: "Le taux d'erreur est supérieur à 0 dans la dernière minute."

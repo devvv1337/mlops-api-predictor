@@ -7,8 +7,8 @@ route:
 receivers:
   - name: 'email-notifications'
     email_configs:
-      - to: 'alerts@example.com'
-        from: 'alertmanager@example.com'
-        smarthost: 'smtp.example.com:587'
-        auth_username: 'smtp_user'
-        auth_password: 'smtp_password'
+      - to: '265julien@gmail.com'
+        from: '265julien@gmail.com'
+        smarthost: 'smtp.gmail.com:587'
+        auth_username: '265julien@gmail.com'
+        auth_password: 'wcls jwgb fndn sybz'

@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, conlist, confloat, validator
-from typing import List, Optional, Any  # 'Any' est importé ici
+from typing import List, Optional, Any
 import joblib
 import os
 from dotenv import load_dotenv
@@ -10,7 +10,7 @@ import logging
 import mlflow
 from mlflow.tracking import MlflowClient
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
-from fastapi.responses import Response
+from fastapi.responses import Response, RedirectResponse  # Import de RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 import time
 
@@ -18,7 +18,6 @@ from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-# Importation de Session depuis sqlalchemy.orm
 from sqlalchemy.orm import Session
 
 from .database import SessionLocal, create_db_and_tables, get_user, create_user, User as DBUser
@@ -27,10 +26,14 @@ load_dotenv()
 
 app = FastAPI()
 
-# Middleware CORS (optionnel, ajustez selon vos besoins)
+@app.get("/")
+def redirect_to_docs():
+    return RedirectResponse(url="/docs")
+
+# Middleware CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Changez ceci en production
+    allow_origins=["*"],  # À ajuster en production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -146,7 +149,7 @@ def get_db():
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)  # Changement de SessionLocal à Session
+    db: Session = Depends(get_db)
 ):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -168,7 +171,7 @@ async def get_current_user(
 @app.post("/token", response_model=Token)
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db)  # Changement de SessionLocal à Session
+    db: Session = Depends(get_db)
 ):
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
@@ -187,6 +190,7 @@ def login(
 REQUEST_COUNT = Counter('request_count', 'Nombre total de requêtes')
 REQUEST_LATENCY = Histogram('request_latency_seconds', 'Latence des requêtes en secondes')
 PREDICTION_COUNT = Counter('prediction_count', 'Nombre de prédictions effectuées')
+ERROR_COUNT = Counter('error_count', 'Nombre d\'erreurs')
 
 @app.middleware("http")
 async def metrics_middleware(request: Request, call_next):
@@ -222,6 +226,7 @@ def predict(request: PredictionRequest, current_user: DBUser = Depends(get_curre
         logger.info(f"Prédiction : {prediction.tolist()}, Temps pris : {elapsed_time:.4f} secondes")
         return {"prediction": prediction.tolist(), "prediction_time_seconds": elapsed_time}
     except Exception as e:
+        ERROR_COUNT.inc()
         logger.error(f"Erreur de prédiction : {str(e)}")
         raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
