@@ -6,18 +6,20 @@ services:
     container_name: mlops_trainer
     entrypoint: ["python", "model.py"]
     depends_on:
-      - mlflow
+      mlflow:
+        condition: service_healthy
     env_file:
       - .env
     environment:
       - AWS_ACCESS_KEY_ID
       - AWS_SECRET_ACCESS_KEY
       - AWS_DEFAULT_REGION
-      - DOCKER_CONTAINER=true  # Add this line
+      - DOCKER_CONTAINER=true
     volumes:
-      - ./app:/app  # Mount the ./app directory into /app
+      - ./app:/app
       - ./models:/models
       - ./data:/app/data
+      - ./params.yaml:/app/params.yaml
     networks:
       - mlops_network
 
@@ -36,9 +38,7 @@ services:
       - prometheus
       - trainer
     volumes:
-      - ./app:/app
-      - ./models:/models
-      - ./data:/app/data
+      - ./data:/app/data  # Only mount the data directory if needed
     networks:
       - mlops_network
 
@@ -79,8 +79,10 @@ services:
   mlflow:
     image: python:3.9-slim
     container_name: mlflow
+    working_dir: /mlflow
     command: >
-      sh -c "pip install mlflow==2.2.1 boto3==1.24.89 && mlflow server --backend-store-uri sqlite:///mlflow.db --default-artifact-root s3://irisbucketmlops/mlflow/ --host 0.0.0.0 --port 5000"
+      sh -c "apt-get update && apt-get install -y curl && pip install mlflow==2.2.1 &&
+      mlflow server --backend-store-uri sqlite:///mlflow.db --default-artifact-root ./mlruns --host 0.0.0.0 --port 5000"
     environment:
       - AWS_ACCESS_KEY_ID
       - AWS_SECRET_ACCESS_KEY
@@ -93,6 +95,11 @@ services:
       - "5000:5000"
     networks:
       - mlops_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://mlflow:5000/"]
+      interval: 40s
+      timeout: 10s
+      retries: 10
 
 networks:
   mlops_network:

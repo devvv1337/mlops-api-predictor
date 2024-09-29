@@ -7,8 +7,8 @@ stages:
     deps:
     - path: app/model.py
       hash: md5
-      md5: 40e927eca030f84098fe2ffe8111cc4f
-      size: 1893
+      md5: c3d56c5f2d8f63ad457459bd0dd680fc
+      size: 1898
     - path: data/raw/iris.csv
       hash: md5
       md5: dfd937daece56623d0a753286627645a

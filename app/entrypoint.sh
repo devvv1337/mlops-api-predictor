@@ -4,17 +4,17 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
-# Navigate to the app directory
+# Navigate to the project root directory
 cd /app
 
-# Tirer le modèle depuis le stockage distant DVC
+# Pull the model from the DVC remote
 echo "Pulling model from DVC remote..."
 dvc pull models/model.joblib
 
 # Initialize the database
 echo "Initializing the database..."
-python -c "from database import create_db_and_tables; create_db_and_tables()"
+python -c "from app.database import create_db_and_tables; create_db_and_tables()"
 
 # Start the application using Uvicorn
 echo "Starting the API server..."
-uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn app.main:app --host 0.0.0.0 --port 8000
