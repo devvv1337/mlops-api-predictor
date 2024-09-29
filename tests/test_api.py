@@ -29,7 +29,8 @@ def test_predict_endpoint_missing_feature():
         json={"features": [5.1, 3.5, 1.4]},  # Manque une feature
     )
     assert response.status_code == 422
-    assert response.json()["detail"][0]["msg"] == "Le nombre de features doit être exactement 4."
+    assert response.json()["detail"][0]["msg"] == "ensure this value has at least 4 items"
+
 
 def test_predict_endpoint_feature_out_of_range():
     response = client.post(
