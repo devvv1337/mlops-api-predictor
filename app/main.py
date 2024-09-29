@@ -201,6 +201,9 @@ def predict(request: PredictionRequest, current_user: DBUser = Depends(get_curre
         PREDICTION_COUNT.inc()
         logger.info(f"Requête de prédiction reçue : {request.features}")
 
+        # Set the experiment to "Iris_Classification"
+        mlflow.set_experiment("Iris_Classification")
+
         # Démarrer le chronomètre
         start_time = time.time()
 
