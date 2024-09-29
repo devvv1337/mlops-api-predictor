@@ -12,12 +12,12 @@ groups:
       
       - alert: LowPredictionCount
         expr: sum(rate(prediction_count_total[1m])) < 100
-        for: 2m
+        for: 10m
         labels:
           severity: warning
         annotations:
           summary: "Nombre de prédictions faible détecté"
-          description: "Moins de 100 prédictions par minute pendant 2 minutes consécutives, ce qui pourrait indiquer un problème."
+          description: "Moins de 100 prédictions par minute pendant 10 minutes consécutives, ce qui pourrait indiquer un problème."
       
       - alert: HighErrorRate
         expr: sum(rate(error_count_total[1m])) > 0
