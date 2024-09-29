@@ -8,16 +8,17 @@ from dotenv import load_dotenv
 
 import logging
 import mlflow
+from mlflow.tracking import MlflowClient
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
-import time  # Import ajouté
+import time
 
 load_dotenv()
 
 app = FastAPI()
 
-# CORS Middleware (optionnel, ajustez selon vos besoins)
+# Middleware CORS (optionnel, ajustez selon vos besoins)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Changez ceci en production
@@ -37,14 +38,38 @@ else:
     mlflow_tracking_uri = f'file://{os.path.abspath("mlruns")}'
 mlflow.set_tracking_uri(mlflow_tracking_uri)
 
-# Obtention du répertoire actuel du fichier
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Initialiser le client MLflow
+client = MlflowClient()
 
-# Charger le modèle
-MODEL_PATH = os.getenv('MODEL_PATH', os.path.join(CURRENT_DIR, '..', 'models', 'model.joblib'))
-if not os.path.exists(MODEL_PATH):
-    raise FileNotFoundError(f"Model file not found at {MODEL_PATH}")
-model = joblib.load(MODEL_PATH)
+# Obtenir le modèle en production le plus récent
+def load_production_model():
+    try:
+        latest_production_versions = client.get_latest_versions(
+            name="IrisRandomForestModel", stages=["Production"]
+        )
+        if latest_production_versions:
+            prod_version = latest_production_versions[0]
+            model_uri = f"models:/{prod_version.name}/{prod_version.version}"
+            model = mlflow.pyfunc.load_model(model_uri)
+            logger.info(f"Chargé le modèle version {prod_version.version} depuis le stage Production.")
+            return model
+        else:
+            raise Exception("Aucun modèle en stage Production.")
+    except Exception as e:
+        logger.error(f"Échec du chargement du modèle depuis le registre MLflow : {e}")
+        raise
+
+try:
+    model = load_production_model()
+except Exception as e:
+    # Repli sur le modèle local si disponible
+    logger.warning("Repli sur le modèle local.")
+    CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+    MODEL_PATH = os.getenv('MODEL_PATH', os.path.join(CURRENT_DIR, '..', 'models', 'model.joblib'))
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(f"Fichier modèle introuvable à {MODEL_PATH}")
+    model = joblib.load(MODEL_PATH)
+    logger.info("Modèle local chargé.")
 
 # Sécurité
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -63,7 +88,7 @@ def fake_hash_password(password: str):
 
 class User(BaseModel):
     username: str
-    full_name: Optional[str] = None  # Utilisez Optional ici
+    full_name: Optional[str] = None
 
 class UserInDB(User):
     hashed_password: str
@@ -76,35 +101,13 @@ def authenticate_user(username: str, password: str):
         return False
     return User(**user)
 
-# Fonction pour envoyer des emails d'erreur (désactivée pour le moment)
-# def send_error_email(subject: str, message: str):
-#     smtp_server = os.getenv("SMTP_SERVER")
-#     smtp_port = int(os.getenv("SMTP_PORT", 587))
-#     smtp_user = os.getenv("SMTP_USER")
-#     smtp_password = os.getenv("SMTP_PASSWORD")
-#     recipient = os.getenv("ALERT_EMAIL_RECIPIENT")
-#
-#     msg = MIMEText(message)
-#     msg['Subject'] = subject
-#     msg['From'] = smtp_user
-#     msg['To'] = recipient
-#
-#     try:
-#         with smtplib.SMTP(smtp_server, smtp_port) as server:
-#             server.starttls()
-#             server.login(smtp_user, smtp_password)
-#             server.send_message(msg)
-#         logger.info("Error email sent successfully.")
-#     except Exception as e:
-#         logger.error(f"Failed to send error email: {e}")
-
 @app.post("/token")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = authenticate_user(form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
+            detail="Nom d'utilisateur ou mot de passe incorrect",
             headers={"WWW-Authenticate": "Bearer"},
         )
     # Dans une application réelle, retournez un JWT ou un token similaire
@@ -114,9 +117,9 @@ class PredictionRequest(BaseModel):
     features: List[float]
 
 # Métriques Prometheus
-REQUEST_COUNT = Counter('request_count', 'Total number of requests')
-REQUEST_LATENCY = Histogram('request_latency_seconds', 'Latency of requests in seconds')
-PREDICTION_COUNT = Counter('prediction_count', 'Number of predictions made')
+REQUEST_COUNT = Counter('request_count', 'Nombre total de requêtes')
+REQUEST_LATENCY = Histogram('request_latency_seconds', 'Latence des requêtes en secondes')
+PREDICTION_COUNT = Counter('prediction_count', 'Nombre de prédictions effectuées')
 
 @app.middleware("http")
 async def metrics_middleware(request: Request, call_next):
@@ -130,10 +133,10 @@ def predict(request: PredictionRequest, token: str = Depends(oauth2_scheme)):
     try:
         # Vérification d'authentification simplifiée
         if not token.startswith("fake-token-for-"):
-            raise HTTPException(status_code=403, detail="Forbidden")
+            raise HTTPException(status_code=403, detail="Accès refusé")
 
         PREDICTION_COUNT.inc()
-        logger.info(f"Received prediction request: {request.features}")
+        logger.info(f"Requête de prédiction reçue : {request.features}")
 
         # Démarrer le chronomètre
         start_time = time.time()
@@ -153,33 +156,39 @@ def predict(request: PredictionRequest, token: str = Depends(oauth2_scheme)):
             mlflow.log_param("username", username)
             mlflow.log_metric("prediction_time_seconds", elapsed_time)
 
-        logger.info(f"Prediction: {prediction.tolist()}, Time taken: {elapsed_time:.4f} seconds")
+        logger.info(f"Prédiction : {prediction.tolist()}, Temps pris : {elapsed_time:.4f} secondes")
         return {"prediction": prediction.tolist(), "prediction_time_seconds": elapsed_time}
     except Exception as e:
-        logger.error(f"Prediction error: {str(e)}")
-        # Appel à la fonction d'envoi d'email d'erreur (désactivé)
-        # send_error_email("API Prediction Error", str(e))
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        logger.error(f"Erreur de prédiction : {str(e)}")
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
 
 @app.get("/model-info")
 def model_info(token: str = Depends(oauth2_scheme)):
     try:
         # Vérification d'authentification simplifiée
         if not token.startswith("fake-token-for-"):
-            raise HTTPException(status_code=403, detail="Forbidden")
+            raise HTTPException(status_code=403, detail="Accès refusé")
 
-        # Supposons que vous avez un moyen d'obtenir les informations du modèle
-        # Pour la démonstration, nous allons retourner des données fictives
-        return {
-            "model_version": "1.0.0",
-            "model_stage": "Production",
-            "creation_timestamp": "2024-09-27T13:47:53Z"
-        }
+        # Obtenir les informations du modèle depuis le registre MLflow
+        latest_production_versions = client.get_latest_versions(
+            name="IrisRandomForestModel", stages=["Production"]
+        )
+        if latest_production_versions:
+            prod_version = latest_production_versions[0]
+            return {
+                "model_name": prod_version.name,
+                "model_version": prod_version.version,
+                "current_stage": prod_version.current_stage,
+                "description": prod_version.description,
+                "creation_timestamp": prod_version.creation_timestamp,
+                "last_updated_timestamp": prod_version.last_updated_timestamp,
+                "run_id": prod_version.run_id,
+            }
+        else:
+            raise Exception("Aucun modèle en stage Production.")
     except Exception as e:
-        logger.error(f"Error getting model info: {str(e)}")
-        # Appel à la fonction d'envoi d'email d'erreur (désactivé)
-        # send_error_email("API Model Info Error", str(e))
-        raise HTTPException(status_code=500, detail="Error retrieving model information")
+        logger.error(f"Erreur lors de l'obtention des informations du modèle : {str(e)}")
+        raise HTTPException(status_code=500, detail="Erreur lors de la récupération des informations du modèle")
 
 @app.get("/metrics")
 def metrics():

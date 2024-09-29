@@ -35,13 +35,12 @@ services:
       - AWS_SECRET_ACCESS_KEY
       - AWS_DEFAULT_REGION
       - DOCKER_CONTAINER=true  
-
     depends_on:
       - prometheus
       - trainer
       - mlflow  # Assurez-vous que l'API dépend également de MLflow
     volumes:
-      - ./data:/app/data  # Only mount the data directory if needed
+      - ./data:/app/data  # Montez le répertoire data si nécessaire
     networks:
       - mlops_network
 
@@ -85,11 +84,12 @@ services:
     working_dir: /mlflow
     command: >
       sh -c "apt-get update && apt-get install -y curl && pip install mlflow==2.2.1 &&
-      mlflow server --backend-store-uri sqlite:///mlflow.db --default-artifact-root ./mlruns --host 0.0.0.0 --port 5000"
+      mlflow server --backend-store-uri sqlite:///mlflow.db --default-artifact-root ${MLFLOW_ARTIFACT_ROOT} --host 0.0.0.0 --port 5000"
     environment:
       - AWS_ACCESS_KEY_ID
       - AWS_SECRET_ACCESS_KEY
       - AWS_DEFAULT_REGION
+      - MLFLOW_ARTIFACT_ROOT=s3://${AWS_S3_BUCKET}/mlartifacts
     env_file:
       - .env
     volumes:
