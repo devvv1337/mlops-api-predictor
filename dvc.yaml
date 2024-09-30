@@ -1,6 +1,6 @@
 stages:
   train:
-    cmd: /Users/juliencardi/Documents/ing3/mlops/mlops_project/mlops-api-predictor/myenv/bin/python app/model.py
+    cmd: ${PYTHON_ENV}/bin/python app/model.py
     deps:
       - data/raw/iris.csv
       - app/model.py

@@ -7,7 +7,7 @@ route:
 receivers:
   - name: 'email-notifications'
     email_configs:
-      - to: '265julien@gmail.com'
+      - to: 'julien.cardi@epita.fr'
         from: '265julien@gmail.com'
         smarthost: 'smtp.gmail.com:587'
         auth_username: '265julien@gmail.com'

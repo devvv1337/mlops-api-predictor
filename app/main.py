@@ -1,10 +1,11 @@
+from dotenv import load_dotenv
+load_dotenv()
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, conlist, confloat, validator
 from typing import List, Optional, Any
 import joblib
 import os
-from dotenv import load_dotenv
 
 import logging
 import mlflow
@@ -22,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from .database import SessionLocal, create_db_and_tables, get_user, create_user, User as DBUser
 
-load_dotenv()
+
 
 app = FastAPI()
 
@@ -101,10 +102,13 @@ def get_password_hash(password):
 def authenticate_user(db, username: str, password: str):
     user = get_user(db, username)
     if not user:
+        logger.info(f"Utilisateur '{username}' non trouvé.")
         return None
     if not verify_password(password, user.hashed_password):
+        logger.info(f"Mot de passe incorrect pour l'utilisateur '{username}'.")
         return None
     return user
+
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
