@@ -32,7 +32,7 @@ Welcome to the **MLOps API Predictor** project! This application provides a robu
 
 The project is structured using a microservices architecture, orchestrated by Docker Compose. Below is an overview of the main components:
 
-![Architecture Diagram](https://i.imgur.com/sBReyky.png)
+![Architecture Diagram]([https://i.imgur.com/sBReyky.png](https://i.imgur.com/fMkL7Vp.png))
 
 ### Components
 
