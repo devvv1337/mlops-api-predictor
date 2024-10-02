@@ -60,7 +60,7 @@ Before you begin, ensure you have met the following requirements:
 1. **Clone the Repository**
 
    ```bash
-   git clone https://github.com/yourusername/mlops-api-predictor.git
+   git clone https://github.com/devvv1337/mlops-api-predictor.git
    cd mlops-api-predictor
    ```
 
